@@ -1,6 +1,17 @@
 server:
   port: "8080"
 
-proxy:
-  # 我们要代理的目标服务地址
-  target_url: "http://127.0.0.1:9090"
+# 定义一个路由规则列表
+routes:
+  - name: "service_a"
+    path: "/service/a"  # 匹配所有以 /service/a 开头的请求
+    target: "http://127.0.0.1:9091"
+
+  - name: "service_b"
+    path: "/service/b"
+    target: "http://127.0.0.1:9092"
+
+  # 一个更具体的路由，用于演示匹配优先级
+  - name: "service_a_users"
+    path: "/service/a/users"
+    target: "http://127.0.0.1:9093"
