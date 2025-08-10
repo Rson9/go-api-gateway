@@ -21,3 +21,7 @@ rate_limiter:
   enabled: true
   rate: 10      # 每秒生成的令牌数 (RPS)
   burst: 20     # 令牌桶的容量 (允许的瞬时并发)
+
+# 新增: 管理端口配置
+management:
+  port: "9099" 

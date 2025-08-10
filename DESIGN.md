@@ -64,3 +64,34 @@
 **未来改进**:
 - **分布式限流**: 当前的限流器是基于内存的，其状态在单个网关实例中。如果网关进行水平扩展（部署多个实例），每个实例都会有自己的令牌桶，无法实现全局限流。下一步可以引入 **Redis** 来存储令牌桶的状态，实现所有网关实例共享的分布式限流。
 - **按路由限流**: 当前是全局限流。未来可以扩展配置，允许为每个路由规则定义自己独立的限流策略。
+
+## 5. 可观测性：Metrics (Observability: Metrics)
+
+为了深入了解网关的性能和行为，我们集成了 Prometheus 指标监控。
+
+### 5.1 指标设计
+
+我们暴露了三个核心的黄金指标 (Golden Signals)：
+
+1.  **`http_requests_total` (Counter)**: 跟踪请求总量。通过 `route`, `method`, `code` 标签，我们可以回答“服务 A 的 POST 请求的 5xx 错误率是多少？”这类问题。
+2.  **`http_request_duration_seconds` (Histogram)**: 跟踪请求延迟。Histogram 类型使我们能够在 Prometheus 或 Grafana 中计算分位数（如 p95, p99 延迟），这对于定义服务等级目标 (SLO) 至关重要。
+3.  **`http_requests_in_flight` (Gauge)**: 跟踪并发请求数。这个指标有助于发现系统瓶颈或请求积压问题。
+
+**标签策略**: 我们使用 `route.Name` 作为 `route` 标签的值，而不是原始的 URL 路径。这是一个关键的设计决策，可以防止**标签基数爆炸 (label cardinality explosion)**。如果使用用户提供的路径，每个不同的 URL 都会创建一个新的时间序列，会迅速耗尽监控系统的内存。
+
+### 5.2 实现方案
+
+- **Metrics 中间件**: 一个新的中间件被添加到处理链的最外层，以确保所有请求（包括被拒绝的）都能被统计到。
+- **捕获状态码**: 我们实现了一个 `responseWriterInterceptor` 来包装标准的 `http.ResponseWriter`。这是在中间件中可靠地获取最终 HTTP 响应状态码的标准模式。
+- **独立的管理端口**: 指标接口 (`/metrics`) 运行在一个独立的管理端口上（例如 9099）。这是一种安全最佳实践，它允许我们通过防火墙规则限制对监控数据的访问，将其与公开的业务流量端口（8080）隔离。
+
+### 5.3 如何使用
+
+1.  启动网关。
+2.  访问 `http://localhost:9099/metrics` 查看原始指标。
+3.  在你的 `prometheus.yml` 中添加以下抓取配置，让 Prometheus 开始收集数据：
+    ```yaml
+    scrape_configs:
+      - job_name: 'api-gateway'
+        static_configs:
+          - targets: ['localhost:9099']

@@ -17,9 +17,15 @@ type router struct {
 	// 预先为每个路由创建一个代理，提高性能
 	proxies map[string]*httputil.ReverseProxy
 }
+ 
+// 确保 router 实现了 Matcher 接口
+var _ Matcher = (*router)(nil)
+
+// 实现Handler接口
+var _ http.Handler = (*router)(nil)
 
 // NewRouter 创建并初始化路由器
-func NewRouter(cfg *config.Config) (http.Handler, error) {
+func NewRouter(cfg *config.Config) (*router, error) {
 	r := &router{
 		routes:  cfg.Routes,
 		proxies: make(map[string]*httputil.ReverseProxy),
@@ -41,20 +47,23 @@ func NewRouter(cfg *config.Config) (http.Handler, error) {
 	return r, nil
 }
 
+// Match 根据请求查找匹配的路由规则，但不执行代理
+func (r *router) Match(req *http.Request) *config.Route {
+    for _, route := range r.routes {
+        if strings.HasPrefix(req.URL.Path, route.Path) {
+            return route
+        }
+    }
+    return nil
+}
+
 // ServeHTTP 是路由器的入口点，它实现了 http.Handler 接口
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	// 遍历排序后的路由，找到第一个匹配的
-	for _, route := range r.routes {
-		if strings.HasPrefix(req.URL.Path, route.Path) {
-			proxy := r.proxies[route.Path]
-			// 在转发前，我们可以修改请求头等信息
-			// 例如，移除匹配到的前缀，如果后端服务不需要它
-			// req.URL.Path = strings.TrimPrefix(req.URL.Path, route.Path)
-			proxy.ServeHTTP(w, req)
-			return
-		}
+	matchedRoute := r.Match(req)
+	if matchedRoute != nil {
+		proxy := r.proxies[matchedRoute.Path]
+		proxy.ServeHTTP(w, req)
+		return
 	}
-
-	// 如果没有找到任何匹配的路由，返回 404
 	http.NotFound(w, req)
 }

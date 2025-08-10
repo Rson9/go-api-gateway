@@ -1,0 +1,18 @@
+# prometheus.yml
+
+# 全局配置
+global:
+  scrape_interval: 15s # 每15秒抓取一次target
+
+# 抓取配置列表
+scrape_configs:
+  # 'api-gateway' 是我们为这个监控任务起的名字
+  - job_name: 'api-gateway'
+    
+    # 静态配置，直接指定要监控的目标
+    static_configs:
+      # 'targets' 列表包含了所有要抓取的目标地址
+      # [注意!] 如果你的网关和Prometheus不在同一个Docker网络中，
+      # 不能使用 'localhost'。对于本地开发，请使用 'host.docker.internal'
+      # 它能让Docker容器访问到宿主机的网络。
+      - targets: ['host.docker.internal:9099']
