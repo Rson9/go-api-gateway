@@ -15,3 +15,9 @@ routes:
   - name: "service_a_users"
     path: "/service/a/users"
     target: "http://127.0.0.1:9093"
+
+# 新增：限流器配置
+rate_limiter:
+  enabled: true
+  rate: 10      # 每秒生成的令牌数 (RPS)
+  burst: 20     # 令牌桶的容量 (允许的瞬时并发)

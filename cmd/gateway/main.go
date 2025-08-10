@@ -4,6 +4,8 @@ import (
 	"log"
 
 	"github.com/rson9/go-api-gateway/internal/config"
+	"github.com/rson9/go-api-gateway/internal/limiter"
+	"github.com/rson9/go-api-gateway/internal/middleware"
 	"github.com/rson9/go-api-gateway/internal/router"
 	"github.com/rson9/go-api-gateway/internal/server"
 	"github.com/spf13/viper"
@@ -37,6 +39,15 @@ func main() {
 		log.Fatalf("Could not create router: %s", err)
 	}
 
-	// 4. 启动服务器
-	server.Start(cfg.Server.Port, routerHandler)
+	// 4. 应用中间件
+    finalHandler := routerHandler
+    if cfg.RateLimiter.Enabled {
+        log.Printf("Rate limiter is enabled: rate=%.2f, burst=%d", cfg.RateLimiter.Rate, cfg.RateLimiter.Burst)
+        tokenBucket := limiter.NewTokenBucket(cfg.RateLimiter.Rate, cfg.RateLimiter.Burst)
+        // 将我们的路由器包裹在限流中间件中
+        finalHandler = middleware.RateLimit(tokenBucket)(finalHandler)
+    }
+    
+	// 5. 启动服务器
+	server.Start(cfg.Server.Port, finalHandler)
 }
